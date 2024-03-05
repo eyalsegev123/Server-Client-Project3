@@ -1,35 +1,51 @@
 package bgu.spl.net.impl.tftp;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 
 import bgu.spl.net.api.MessageEncoderDecoder;
 
 public class TftpEncoderDecoder implements MessageEncoderDecoder<byte[]> {
-    private List<Byte> bytes = new LinkedList<Byte>();
-    
+    private byte[] bytes = new byte[1 << 10]; //start with 1k
+    private int len = 0;
+    private byte Opcode;
+
     @Override
     public byte[] decodeNextByte(byte nextByte) {
+        //notice that the top 128 ascii characters have the same representation as their utf-8 counterparts
+        //this allow us to do the following comparison
         if(nextByte == 0){
-            byte[] ret = new byte[bytes.size()];
-            int i = 0;
-            for(byte b : bytes){
-                ret[i] = b;
-                i++;
-            }
-            return ret;
+            Opcode = bytes[1];
+            return popByte();
         }
-        bytes.add(nextByte);
-        return null;
+
+        pushByte(nextByte);
+        return null; //not a full message yet
     }
 
     @Override
     public byte[] encode(byte[] message) {
-        byte[] toReturn = new byte[message.length+1];
-        for(int i = 0; i<message.length; i++)
-            toReturn[i] = message[i];
+        byte[] toReturn = Arrays.copyOf(message, message.length+1);
         toReturn[toReturn.length-1] = 0;
         return toReturn;
-        
+    }
+
+    private void pushByte(byte nextByte) {
+        if (len >= bytes.length) {
+            bytes = Arrays.copyOf(bytes, len * 2);
+        }
+        bytes[len++] = nextByte;
+    }
+
+    private byte[] popByte() {
+        byte[] result = Arrays.copyOf(bytes, len);
+        len = 0;
+        return result;
+    }
+
+    public byte getOpcode(){
+        return Opcode;
     }
 }

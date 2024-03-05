@@ -1,8 +1,8 @@
 package bgu.spl.net.srv;
 
-import bgu.spl.net.api.BidiMessagingProtocol;
-import bgu.spl.net.api.MessageEncoderDecoder;
-import bgu.spl.net.api.MessagingProtocol;
+import bgu.spl.net.impl.tftp.TftpEncoderDecoder;
+import bgu.spl.net.impl.tftp.TftpProtocol;
+
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -11,14 +11,14 @@ import java.util.function.Supplier;
 public abstract class BaseServer<T> implements Server<T> {
 
     private final int port;
-    private final Supplier<BidiMessagingProtocol<T>> protocolFactory;
-    private final Supplier<MessageEncoderDecoder<T>> encdecFactory;
+    private final Supplier<TftpProtocol> protocolFactory;
+    private final Supplier<TftpEncoderDecoder> encdecFactory;
     private ServerSocket sock;
 
     public BaseServer(
             int port,
-            Supplier<BidiMessagingProtocol<T>> protocolFactory,
-            Supplier<MessageEncoderDecoder<T>> encdecFactory) {
+            Supplier<TftpProtocol> protocolFactory,
+            Supplier<TftpEncoderDecoder> encdecFactory) {
 
         this.port = port;
         this.protocolFactory = protocolFactory;
