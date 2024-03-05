@@ -5,10 +5,15 @@ import bgu.spl.net.srv.Connections;
 
 public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
 
+    private int connectionId;
+    private boolean shouldTerminate;
+    private Connections<byte[]> connections;
+
     @Override
     public void start(int connectionId, Connections<byte[]> connections) {
-        // TODO implement this
-        throw new UnsupportedOperationException("Unimplemented method 'start'");
+        this.connectionId = connectionId;
+        this.shouldTerminate = false;
+        this.connections = connections;
     }
 
     @Override
@@ -19,10 +24,7 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
 
     @Override
     public boolean shouldTerminate() {
-        // TODO implement this
-        throw new UnsupportedOperationException("Unimplemented method 'shouldTerminate'");
+        return shouldTerminate;
     } 
-
-
     
 }
