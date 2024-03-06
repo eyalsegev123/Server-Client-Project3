@@ -6,6 +6,7 @@ import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.net.Socket;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class BlockingConnectionHandler<T> implements Runnable, ConnectionHandler<byte[]> {
 
@@ -24,9 +25,11 @@ public class BlockingConnectionHandler<T> implements Runnable, ConnectionHandler
 
     @Override
     public void run() {
-        // start of protocol happens here in run
+        
+        // start of protocol happens here in run and add client to connected clients
         try (Socket sock = this.sock) { //just for automatic closing
-            //protocol.start(0, null);
+            
+            
             int read;
 
             in = new BufferedInputStream(sock.getInputStream());
@@ -35,14 +38,13 @@ public class BlockingConnectionHandler<T> implements Runnable, ConnectionHandler
             while (!protocol.shouldTerminate() && connected && (read = in.read()) >= 0) {
                 byte[] nextMessage = encdec.decodeNextByte((byte) read);
                 if (nextMessage != null) {
-                    protocol.process(nextMessage, encdec.getOpcode());
+                    protocol.process(nextMessage);
                 }
             }
 
         } catch (IOException ex) {
             ex.printStackTrace();
         }
-
     }
 
     @Override

@@ -6,6 +6,7 @@ import bgu.spl.net.impl.tftp.TftpProtocol;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 public abstract class BaseServer<T> implements Server<T> {
@@ -14,6 +15,7 @@ public abstract class BaseServer<T> implements Server<T> {
     private final Supplier<TftpProtocol> protocolFactory;
     private final Supplier<TftpEncoderDecoder> encdecFactory;
     private ServerSocket sock;
+    
 
     public BaseServer(
             int port,
@@ -24,6 +26,7 @@ public abstract class BaseServer<T> implements Server<T> {
         this.protocolFactory = protocolFactory;
         this.encdecFactory = encdecFactory;
 		this.sock = null;
+        
     }
 
     @Override

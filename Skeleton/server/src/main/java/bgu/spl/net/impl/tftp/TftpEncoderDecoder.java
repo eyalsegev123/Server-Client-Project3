@@ -10,14 +10,13 @@ import bgu.spl.net.api.MessageEncoderDecoder;
 public class TftpEncoderDecoder implements MessageEncoderDecoder<byte[]> {
     private byte[] bytes = new byte[1 << 10]; //start with 1k
     private int len = 0;
-    private byte Opcode;
 
     @Override
     public byte[] decodeNextByte(byte nextByte) {
         //notice that the top 128 ascii characters have the same representation as their utf-8 counterparts
         //this allow us to do the following comparison
         if(nextByte == 0){
-            Opcode = bytes[1];
+            pushByte(nextByte);
             return popByte();
         }
 
@@ -45,7 +44,4 @@ public class TftpEncoderDecoder implements MessageEncoderDecoder<byte[]> {
         return result;
     }
 
-    public byte getOpcode(){
-        return Opcode;
-    }
 }
