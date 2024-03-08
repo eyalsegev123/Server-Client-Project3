@@ -41,10 +41,12 @@ public class BlockingConnectionHandler<T> implements Runnable, ConnectionHandler
                     protocol.process(nextMessage);
                 }
             }
-
+            this.close();
+            
         } catch (IOException ex) {
             ex.printStackTrace();
         }
+        
     }
 
     @Override
