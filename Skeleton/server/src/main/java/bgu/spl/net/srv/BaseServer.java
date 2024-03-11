@@ -6,7 +6,6 @@ import bgu.spl.net.impl.tftp.TftpProtocol;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 public abstract class BaseServer<T> implements Server<T> {
@@ -15,17 +14,20 @@ public abstract class BaseServer<T> implements Server<T> {
     private final Supplier<TftpProtocol> protocolFactory;
     private final Supplier<TftpEncoderDecoder> encdecFactory;
     private ServerSocket sock;
+    private int idCounter = 1;
+    private ConnectionsImpl connections;
     
 
     public BaseServer(
             int port,
             Supplier<TftpProtocol> protocolFactory,
-            Supplier<TftpEncoderDecoder> encdecFactory) {
+            Supplier<TftpEncoderDecoder> encdecFactory, ConnectionsImpl connections) {
 
         this.port = port;
         this.protocolFactory = protocolFactory;
         this.encdecFactory = encdecFactory;
 		this.sock = null;
+        this.connections = connections;
         
     }
 
@@ -44,8 +46,8 @@ public abstract class BaseServer<T> implements Server<T> {
                 BlockingConnectionHandler<T> handler = new BlockingConnectionHandler<>(
                         clientSock,
                         encdecFactory.get(),
-                        protocolFactory.get());
-
+                        protocolFactory.get(), idCounter++,
+                        connections);
                 execute(handler);
             }
         } catch (IOException ex) {

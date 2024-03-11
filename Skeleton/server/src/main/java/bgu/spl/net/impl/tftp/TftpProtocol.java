@@ -2,10 +2,11 @@ package bgu.spl.net.impl.tftp;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 import bgu.spl.net.api.BidiMessagingProtocol;
-import bgu.spl.net.srv.ConnectionHandler;
 import bgu.spl.net.srv.Connections;
 
 import java.nio.file.Files;
@@ -13,7 +14,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.LinkedList;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
+
 
 public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
 
@@ -22,9 +23,16 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
     private Connections<byte[]> connections; //connected Clients
     private boolean isLoggedIn = false;
     private ConcurrentHashMap<Integer,String> LoggedInClients;
+    private String pathOfFiles;
+    private FileOutputStream out;
+    private LinkedList<byte[]> packets;
+    private short blockNumber;
+    
+    
 
     public TftpProtocol(ConcurrentHashMap<Integer,String> LoggedInClients){
         this.LoggedInClients = LoggedInClients;
+        blockNumber = 1;
     }
 
     
@@ -33,7 +41,6 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
         this.connectionId = connectionId;
         this.shouldTerminate = false;
         this.connections = connections;
-
     }
 
     @Override
@@ -43,58 +50,142 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
         tempOpcode[1] = message[1];
         short Opcode = byteToShort(tempOpcode);
         if(!isLoggedIn && Opcode != (short) 7){ //Checks if a user is even loggedin
-            connections.send(connectionId, createError((short)6));
+            connections.send(connectionId, createError((short)6, "User not logged inUser not logged in"));
             return;
         }
         if(Opcode == 1){ //RRQ - Read request
-            connections.send(connectionId, message);
-        }
-        if(Opcode == 2){ //WRQ - Write request
-        //check if connected
-        }
-        if(Opcode == 6){ //DIRQ - Content of Files in server
-            String[] fileNames = getFilesNames("Skeleton/server/Files");
-            String bigFile = "";
-            for(String s : fileNames){ //Putting a 0 byte at the end of each fileName
-                if(s != fileNames[fileNames.length-1]){
-                    s += "\0";
-                }
-                bigFile += s; 
+            
+            byte[] fileName = new byte[message.length-3];
+            for(int i = 0; i < fileName.length; i++){
+                fileName[i] = message[i+2];
             }
-            LinkedList<byte[]> packets = devideData(bigFile.getBytes());
-            short blockNumber = 1;
-            for (byte[] packet : packets) { 
-                connections.send(connectionId, createData(packet, blockNumber));
+            String nameOfFile = new String(fileName, StandardCharsets.UTF_8);
+            if(existsInServer(nameOfFile)){  // checking if server has file
+                LinkedList<Byte> fileBytesRequested = new LinkedList<Byte>(); 
+                try { //Reading bytes from files with FileInputStream
+                    FileInputStream in = new FileInputStream("Skeleton/server/Files/" + fileName);
+                    int byteRead;
+                    while((byteRead = in.read()) != -1){
+                        fileBytesRequested.add((byte) byteRead);
+                    }
+                    in.close();
+                } catch (IOException e) {
+                }
+                byte[] fileRequested = new byte[fileBytesRequested.size()];
+                int index = 0;
+                for (byte b : fileBytesRequested) 
+                    fileRequested[index++] = b;
+                packets = devideData(fileRequested);
+                if(packets.isEmpty())//The file is an empty file
+                    connections.send(connectionId, createData(new byte[0], blockNumber));
+                else{ //The file isn't
+                    connections.send(connectionId, createData(packets.removeFirst(), blockNumber));
+                    blockNumber++;
+                }    
+            }    
+            else//File doesnt exist in server
+                connections.send(connectionId, createError((short) 1, "File doesn't exist in server"));
+        }
+
+        if(Opcode == 2){ //WRQ - Write request
+            byte[] fileName = new byte[message.length-3];
+            for(int i = 0; i < fileName.length; i++){
+                fileName[i] = message[i+2];
+            }
+            String nameOfFile = new String(fileName, StandardCharsets.UTF_8);
+            if(existsInServer(nameOfFile)){ //checking if file exists -> error 
+                connections.send(connectionId, createError((short) 5, "File already exists in server"));
+            }
+            else{ // File doesnt exist
+                connections.send(connectionId, createACK((short)0));
+                pathOfFiles = "Skeleton/server/Files" + fileName; //Defining the path of the file to be
+                try {
+                    out = new FileOutputStream(pathOfFiles); //Creating a new stream to recieve the upload of the client
+                } catch (IOException e) {
+                }
+                
+            }
+        }
+
+        if(Opcode == 3){//DATA packet for uploading a file from the client to the server
+            byte[] blockNumber = new byte[2];
+            blockNumber[0] = message[4];
+            blockNumber[1] = message[5];
+            short blockNum = byteToShort(blockNumber);
+            byte[] data = new byte[message.length-6];
+            for(int i = 0; i < data.length; i++){
+                data[i] = message[i+6];
+            }
+            try {
+                out.write(data);
+                connections.send(connectionId, createACK(blockNum));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        
+        if(Opcode == 4){ //ACK packet
+            if(packets.isEmpty())
+                blockNumber = 1;
+            else{
+                connections.send(connectionId, createData(packets.removeFirst() , blockNumber));
                 blockNumber++;
             }
-            //else send error
-            
+        }
+
+        if(Opcode == 6){ //DIRQ - Content of Files in server
+            String[] fileNames = getFilesNames("Skeleton/server/Files");
+            if(fileNames.length > 0){ //The are files in the folder
+                String bigFile = "";
+                for(String s : fileNames){ //Putting a 0 byte at the end of each fileName
+                    if(s != fileNames[fileNames.length-1]){
+                        s += "\0";
+                    }
+                    bigFile += s; 
+                }
+                LinkedList<byte[]> packets = devideData(bigFile.getBytes());
+                short blockNumber = 1;
+                for (byte[] packet : packets) { 
+                    connections.send(connectionId, createData(packet, blockNumber));
+                    connections.send(connectionId, createACK(blockNumber));
+                    blockNumber++;
+                }
+            }
+            else //There arent files in folder
+                connections.send(connectionId, createError((short) 0, "Files folder is empty"));      
         }
         if(Opcode == 7){ //LOGRQ - Login Request
-        //forum
-            String userName = new String(message, StandardCharsets.UTF_8); //userName sent with command
-            if(!isLoggedIn && !userExists(userName)){ //Checks if client logged in for the first time and if username exists in System
+            byte[] userName = new byte[message.length-3];
+            for(int i = 0; i < userName.length; i++){
+                userName[i] = message[i+2];
+            }
+            String name = new String(userName, StandardCharsets.UTF_8);            
+            if(!isLoggedIn && !userExists(name)){ //Checks if client logged in for the first time and if username exists in System
                 isLoggedIn = true;
-                LoggedInClients.put(connectionId ,userName); 
+                LoggedInClients.put(connectionId ,name); 
                 connections.send(connectionId, createACK((short)0));
             }
             else
-                connections.send(connectionId, createError((short) 7));
+                connections.send(connectionId, createError((short) 7,"User already logged in"));
         }
 
         if(Opcode == 8){ //DELRQ - Delete Request
-            String fileName = new String(message, StandardCharsets.UTF_8); //fileName sent with command
-            if(existsInServer(fileName)){ //true iff the file exists in server
+            byte[] fileName = new byte[message.length-3];
+            for(int i = 0; i < fileName.length; i++){
+                fileName[i] = message[i+2];
+            }
+            String nameOfFile = new String(fileName, StandardCharsets.UTF_8); //fileName sent with command
+            if(existsInServer(nameOfFile)){ //true iff the file exists in server
                 String filesDirectory = "/Skeleton/server/Files";
-                File fileToDelete = new File(filesDirectory, fileName);
+                File fileToDelete = new File(filesDirectory, nameOfFile);
                 fileToDelete.delete();
                 connections.send(connectionId, createACK((short)0));
                 for(Integer key : LoggedInClients.keySet())
-                    connections.send(key, createBCast((short) 0, fileName));
+                    connections.send(key, createBCast((short) 0, nameOfFile));
                 
             }
             else{
-                connections.send(connectionId, createError((short) 1));
+                connections.send(connectionId, createError((short) 1, "File not found"));
             }
         }
 
@@ -102,7 +193,7 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
             LoggedInClients.remove(connectionId); //Remove from loggedin clients
             connections.disconnect(connectionId); //Disconnect from server 
             connections.send(connectionId, createACK((short) 0)); //Send ACK 0 confirmation
-            shouldTerminate = true; //
+            shouldTerminate = true; 
         }
         
     }
@@ -123,44 +214,12 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
         return ACK;
     }
 
-    public byte[] createError(short errorValue){
+    public byte[] createError(short errorValue, String errorMsg){
         byte[][] arrays = new byte[3][];
         arrays[0] = shortToByte((short) 5);
         arrays[1] = shortToByte(errorValue);
-        //change the error messages
-        if(errorValue == 0){
-            arrays[3] = "Not defined error".getBytes();
-            return mergeArrays(arrays);
-        }
-        if(errorValue == 1){
-            arrays[3] = "File not found".getBytes();
-            return mergeArrays(arrays);
-        }
-        if(errorValue == 2){
-            arrays[3] = "Not defined error".getBytes();
-            return mergeArrays(arrays);
-        }
-        if(errorValue == 3){
-            arrays[3] = "Not defined error".getBytes();
-            return mergeArrays(arrays);
-        }
-        if(errorValue == 4){
-            arrays[3] = "Not defined error".getBytes();
-            return mergeArrays(arrays);
-        }
-        if(errorValue == 5){
-            arrays[3] = "Not defined error".getBytes();
-            return mergeArrays(arrays);
-        }
-        if(errorValue == 6){
-            arrays[3] = "User not logged in".getBytes();
-            return mergeArrays(arrays);
-        }   
-        if(errorValue == 7){
-            arrays[3] = "User already logged in".getBytes();
-            return mergeArrays(arrays);
-        }
-        return null;
+        arrays[2] = errorMsg.getBytes();
+        return mergeArrays(arrays);
     }
 
     public byte[] createBCast(short deleteOrAdd, String fileName){
@@ -185,7 +244,7 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
     }
 
     public short byteToShort(byte[] bytes){
-        return (short) ((( short) bytes [0]) << 8 | (short) (bytes [1]));
+        return (short) (((short) bytes[0]) << 8 | (short) (bytes[1]) & 0x00ff);
     }
 
     public byte[] mergeArrays(byte[][] arrays){
@@ -203,9 +262,9 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
         return result;
     }
     
-    public boolean existsInServer(String messageToString){   
+    public boolean existsInServer(String fileName){   
         String folderPathServer = "/Skeleton/server/Files"; 
-        Path filePathServer = Paths.get(folderPathServer, messageToString);
+        Path filePathServer = Paths.get(folderPathServer, fileName);
         return Files.exists(filePathServer);
     }
 
@@ -228,6 +287,7 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
         LinkedList<byte[]> output = new LinkedList<byte[]>();
         int length = bigFile.length;
         int j = 0;
+        int lastPacketSize = 0;
         while(length > 0){
             byte[] arr;
             if(length > 512){
@@ -237,12 +297,16 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
             else{ //The length left isnt greater than 512
                 arr = new byte[length];
                 length = 0;
+                lastPacketSize = length;
             }
             for(int i = 0; i < arr.length; i++){
                     arr[i] = bigFile[j];
                     j++;
             }
             output.add(arr);
+        }
+        if(lastPacketSize == 512){ //In case that lastpacket is exactly 512 long -> add a empty packet
+            output.add(new byte[0]);
         }
         return output;
     } 
