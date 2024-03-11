@@ -10,6 +10,7 @@ import bgu.spl.net.api.BidiMessagingProtocol;
 import bgu.spl.net.srv.Connections;
 
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.LinkedList;
@@ -23,16 +24,17 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
     private Connections<byte[]> connections; //connected Clients
     private boolean isLoggedIn = false;
     private ConcurrentHashMap<Integer,String> LoggedInClients;
-    private String pathOfFiles;
     private FileOutputStream out;
     private LinkedList<byte[]> packets;
     private short blockNumber;
+    private String serverFilesPath;
     
     
 
     public TftpProtocol(ConcurrentHashMap<Integer,String> LoggedInClients){
         this.LoggedInClients = LoggedInClients;
         blockNumber = 1;
+        serverFilesPath = "/Users/eyalsegev/Documents/Documents - Eyals MacBook Pro/אוניברסיטה /סמסטר ג׳/תכנות מערכות/Server-Client---Project-3/Skeleton/server/Files";
     }
 
     
@@ -50,7 +52,7 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
         tempOpcode[1] = message[1];
         short Opcode = byteToShort(tempOpcode);
         if(!isLoggedIn && Opcode != (short) 7){ //Checks if a user is even loggedin
-            connections.send(connectionId, createError((short)6, "User not logged inUser not logged in"));
+            connections.send(connectionId, createError((short)6, "User not logged in"));
             return;
         }
         if(Opcode == 1){ //RRQ - Read request
@@ -63,7 +65,7 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
             if(existsInServer(nameOfFile)){  // checking if server has file
                 LinkedList<Byte> fileBytesRequested = new LinkedList<Byte>(); 
                 try { //Reading bytes from files with FileInputStream
-                    FileInputStream in = new FileInputStream("Skeleton/server/Files/" + fileName);
+                    FileInputStream in = new FileInputStream(serverFilesPath + fileName);
                     int byteRead;
                     while((byteRead = in.read()) != -1){
                         fileBytesRequested.add((byte) byteRead);
@@ -98,9 +100,8 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
             }
             else{ // File doesnt exist
                 connections.send(connectionId, createACK((short)0));
-                pathOfFiles = "Skeleton/server/Files" + fileName; //Defining the path of the file to be
                 try {
-                    out = new FileOutputStream(pathOfFiles); //Creating a new stream to recieve the upload of the client
+                    out = new FileOutputStream(serverFilesPath + fileName); //Creating a new stream to recieve the upload of the client
                 } catch (IOException e) {
                 }
                 
@@ -134,7 +135,7 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
         }
 
         if(Opcode == 6){ //DIRQ - Content of Files in server
-            String[] fileNames = getFilesNames("Skeleton/server/Files");
+            String[] fileNames = getFilesNames(serverFilesPath);
             if(fileNames.length > 0){ //The are files in the folder
                 String bigFile = "";
                 for(String s : fileNames){ //Putting a 0 byte at the end of each fileName
@@ -147,7 +148,6 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
                 short blockNumber = 1;
                 for (byte[] packet : packets) { 
                     connections.send(connectionId, createData(packet, blockNumber));
-                    connections.send(connectionId, createACK(blockNumber));
                     blockNumber++;
                 }
             }
@@ -176,7 +176,7 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
             }
             String nameOfFile = new String(fileName, StandardCharsets.UTF_8); //fileName sent with command
             if(existsInServer(nameOfFile)){ //true iff the file exists in server
-                String filesDirectory = "/Skeleton/server/Files";
+                String filesDirectory = serverFilesPath;
                 File fileToDelete = new File(filesDirectory, nameOfFile);
                 fileToDelete.delete();
                 connections.send(connectionId, createACK((short)0));
@@ -190,9 +190,9 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
         }
 
         if(Opcode == 10){ //DISC - Disconnect Request
+            connections.send(connectionId, createACK((short) 0)); //Send ACK 0 confirmation
             LoggedInClients.remove(connectionId); //Remove from loggedin clients
             connections.disconnect(connectionId); //Disconnect from server 
-            connections.send(connectionId, createACK((short) 0)); //Send ACK 0 confirmation
             shouldTerminate = true; 
         }
         
@@ -208,25 +208,27 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
         byte[] bytes = shortToByte((short) 4);
         ACK[0] = bytes[0];
         ACK[1] = bytes[1];
-        bytes = shortToByte((short) blockNumber);
+        bytes = shortToByte(blockNumber);
         ACK[2] = bytes[0];
         ACK[3] = bytes[1];
         return ACK;
     }
 
     public byte[] createError(short errorValue, String errorMsg){
-        byte[][] arrays = new byte[3][];
+        byte[][] arrays = new byte[4][];
         arrays[0] = shortToByte((short) 5);
         arrays[1] = shortToByte(errorValue);
         arrays[2] = errorMsg.getBytes();
+        arrays[3] = new byte[]{0};
         return mergeArrays(arrays);
     }
 
     public byte[] createBCast(short deleteOrAdd, String fileName){
-        byte[][] arrays = new byte[3][];
-        arrays[0] =  shortToByte((short) 9); //Opcode
+        byte[][] arrays = new byte[4][];
+        arrays[0] = shortToByte((short) 9); //Opcode
         arrays[1] = shortToByte(deleteOrAdd); //Which action 
         arrays[2] = ("delete " + fileName).getBytes(); // Which file is deleted - the msg
+        arrays[3] = new byte[]{0};
         return mergeArrays(arrays);
     }
 
@@ -263,9 +265,12 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
     }
     
     public boolean existsInServer(String fileName){   
-        String folderPathServer = "/Skeleton/server/Files"; 
-        Path filePathServer = Paths.get(folderPathServer, fileName);
-        return Files.exists(filePathServer);
+        Path filePathServer = Paths.get(serverFilesPath, fileName).toAbsolutePath();
+        try {
+            return Files.exists(filePathServer);
+        } catch (InvalidPathException | SecurityException e) {
+        return false;
+        }
     }
 
     public boolean userExists(String username){

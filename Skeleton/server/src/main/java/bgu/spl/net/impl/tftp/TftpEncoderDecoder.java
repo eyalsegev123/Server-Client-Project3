@@ -70,9 +70,7 @@ public class TftpEncoderDecoder implements MessageEncoderDecoder<byte[]> {
 
     @Override
     public byte[] encode(byte[] message) {
-        byte[] toReturn = Arrays.copyOf(message, message.length+1);
-        toReturn[toReturn.length-1] = 0;
-        return toReturn;
+        return message;
     }
 
     private void pushByte(byte nextByte) {
@@ -85,6 +83,7 @@ public class TftpEncoderDecoder implements MessageEncoderDecoder<byte[]> {
     private byte[] popByte() {
         byte[] result = Arrays.copyOf(bytes, len);
         len = 0;
+        Opcode = -1;
         return result;
     }
 
