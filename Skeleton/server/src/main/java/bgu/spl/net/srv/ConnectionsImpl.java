@@ -1,5 +1,6 @@
 package bgu.spl.net.srv;
 
+import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ConnectionsImpl implements Connections<byte[]>{
@@ -25,7 +26,10 @@ public class ConnectionsImpl implements Connections<byte[]>{
     }
 
     public void disconnect(int connectionId){
-        holder.remove(connectionId);
+        try {
+            holder.remove(connectionId).close();
+        } catch (IOException e) {
+        }
     }
 
     

@@ -42,7 +42,6 @@ public class BlockingConnectionHandler<T> implements Runnable, ConnectionHandler
                     protocol.process(nextMessage); //send func take cares of encoding
                 }
             }
-            
         } catch (IOException ex) {
             ex.printStackTrace();
         }

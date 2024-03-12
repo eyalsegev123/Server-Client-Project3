@@ -34,7 +34,7 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
     public TftpProtocol(ConcurrentHashMap<Integer,String> LoggedInClients){
         this.LoggedInClients = LoggedInClients;
         blockNumber = 1;
-        serverFilesPath = "/Users/eyalsegev/Documents/Documents - Eyals MacBook Pro/אוניברסיטה /סמסטר ג׳/תכנות מערכות/Server-Client---Project-3/Skeleton/server/Files";
+        serverFilesPath = "/Users/eyalsegev/Documents/Documents - Eyals MacBook Pro/אוניברסיטה /סמסטר ג׳/תכנות מערכות/Server-Client---Project-3/Skeleton/server/Files/";
     }
 
     
@@ -64,13 +64,12 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
             String nameOfFile = new String(fileName, StandardCharsets.UTF_8);
             if(existsInServer(nameOfFile)){  // checking if server has file
                 LinkedList<Byte> fileBytesRequested = new LinkedList<Byte>(); 
-                try { //Reading bytes from files with FileInputStream
-                    FileInputStream in = new FileInputStream(serverFilesPath + fileName);
+                try(FileInputStream in = new FileInputStream(serverFilesPath + nameOfFile)) { 
+                    //Reading bytes from files with FileInputStream
                     int byteRead;
                     while((byteRead = in.read()) != -1){
                         fileBytesRequested.add((byte) byteRead);
                     }
-                    in.close();
                 } catch (IOException e) {
                 }
                 byte[] fileRequested = new byte[fileBytesRequested.size()];
@@ -101,10 +100,9 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
             else{ // File doesnt exist
                 connections.send(connectionId, createACK((short)0));
                 try {
-                    out = new FileOutputStream(serverFilesPath + fileName); //Creating a new stream to recieve the upload of the client
+                    out = new FileOutputStream(serverFilesPath + nameOfFile); //Creating a new stream to recieve the upload of the client
                 } catch (IOException e) {
                 }
-                
             }
         }
 
@@ -123,6 +121,7 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
             } catch (IOException e) {
                 e.printStackTrace();
             }
+            
         }
         
         if(Opcode == 4){ //ACK packet
@@ -138,11 +137,11 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
             String[] fileNames = getFilesNames(serverFilesPath);
             if(fileNames.length > 0){ //The are files in the folder
                 String bigFile = "";
-                for(String s : fileNames){ //Putting a 0 byte at the end of each fileName
-                    if(s != fileNames[fileNames.length-1]){
-                        s += "\0";
+                for(int i = 0; i < fileNames.length; i++){ //Putting a 0 byte at the end of each fileName
+                    if(fileNames[i] != fileNames[fileNames.length-1]){
+                        fileNames[i] = fileNames[i] + "\0"; //adds a 0 between the names of the files
                     }
-                    bigFile += s; 
+                    bigFile += fileNames[i]; 
                 }
                 LinkedList<byte[]> packets = devideData(bigFile.getBytes());
                 short blockNumber = 1;
@@ -192,7 +191,7 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
         if(Opcode == 10){ //DISC - Disconnect Request
             connections.send(connectionId, createACK((short) 0)); //Send ACK 0 confirmation
             LoggedInClients.remove(connectionId); //Remove from loggedin clients
-            connections.disconnect(connectionId); //Disconnect from server 
+            connections.disconnect(connectionId); //Removes connectionhandler from connections
             shouldTerminate = true; 
         }
         

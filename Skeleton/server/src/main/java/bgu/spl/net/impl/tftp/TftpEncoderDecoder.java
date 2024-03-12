@@ -41,9 +41,9 @@ public class TftpEncoderDecoder implements MessageEncoderDecoder<byte[]> {
                     }    
                     else {
                         pushByte(nextByte);
-                        if(len == packetSize + 6){ //Finished the whole packet -> return the packet
-                            return popByte();
-                        }
+                    }
+                    if(len == packetSize + 6){ //Finished the whole packet -> return the packet
+                        return popByte();
                     }
                     return null;
                     
