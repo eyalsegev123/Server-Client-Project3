@@ -177,8 +177,7 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
             }
             String nameOfFile = new String(fileName, StandardCharsets.UTF_8); //fileName sent with command
             if(existsInServer(nameOfFile)){ //true iff the file exists in server
-                String filesDirectory = serverFilesPath;
-                File fileToDelete = new File(filesDirectory, nameOfFile);
+                File fileToDelete = new File(serverFilesPath, nameOfFile);
                 fileToDelete.delete();
                 connections.send(connectionId, utils.createACK((short)0));
                 for(Integer key : LoggedInClients.keySet())
@@ -186,7 +185,7 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
                 
             }
             else{
-                connections.send(connectionId, utils.createError((short) 1, "File not found"));
+                connections.send(connectionId, utils.createError((short) 1, "File doesn't exist in server"));
             }
         }
 
@@ -195,6 +194,7 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
             LoggedInClients.remove(connectionId); //Remove from loggedin clients
             connections.disconnect(connectionId); //Removes connectionhandler from connections
             shouldTerminate = true; 
+            //When error occurs?????
         }
         
     }

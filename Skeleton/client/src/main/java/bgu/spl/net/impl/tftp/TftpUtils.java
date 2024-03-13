@@ -33,6 +33,14 @@ public class TftpUtils {
         return mergeArrays(arrays);
     }
 
+    public byte[] createLOGRQ(String name){
+        byte[][] arrays = new byte[3][];
+        arrays[0] = shortToByte((short) 7);
+        arrays[1] = name.getBytes();
+        arrays[2] = new byte[]{0};
+        return mergeArrays(arrays);
+    }
+
     public byte[] createData(byte[] packet, short numOfBlock){
         byte[][] arrays = new byte[4][];
         arrays[0] = shortToByte((short) 3);
