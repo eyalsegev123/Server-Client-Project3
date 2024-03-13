@@ -22,7 +22,7 @@ public class TftpClientEncoderDecoder implements MessageEncoderDecoder<byte[]> {
                 OpcodeBytes[0] = bytes[0];
                 OpcodeBytes[1] = bytes[1]; 
                 Opcode = byteToShort(OpcodeBytes);
-        
+                return null;
             }
         }
         if(Opcode != -1){ //Opcode is set to a case
@@ -53,6 +53,10 @@ public class TftpClientEncoderDecoder implements MessageEncoderDecoder<byte[]> {
                     return null;
 
                 case 6://BCast    
+                    if(len < 3){
+                        pushByte(nextByte);
+                        return null;
+                    }
                     if(nextByte == 0){
                         pushByte(nextByte);
                         return popByte();
@@ -61,6 +65,10 @@ public class TftpClientEncoderDecoder implements MessageEncoderDecoder<byte[]> {
                     return null;
 
                 case 5: //Error
+                    if(len < 4){
+                        pushByte(nextByte);
+                        return null;
+                    }
                     if(nextByte == 0){
                         pushByte(nextByte);
                         return popByte();

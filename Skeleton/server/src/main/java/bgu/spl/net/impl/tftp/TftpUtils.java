@@ -5,14 +5,10 @@ import java.util.LinkedList;
 
 public class TftpUtils {
     public byte[] createACK(short blockNumber){
-        byte[] ACK = new byte[4];
-        byte[] bytes = shortToByte((short) 4);
-        ACK[0] = bytes[0];
-        ACK[1] = bytes[1];
-        bytes = shortToByte(blockNumber);
-        ACK[2] = bytes[0];
-        ACK[3] = bytes[1];
-        return ACK;
+        byte[][] arrays = new byte[2][];
+        arrays[0] = shortToByte((short) 4);
+        arrays[1] = shortToByte(blockNumber);
+        return mergeArrays(arrays);
     }
 
     public byte[] createError(short errorValue, String errorMsg){
