@@ -26,7 +26,7 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
     private ConcurrentHashMap<Integer,String> LoggedInClients;
     private FileOutputStream out;
     private LinkedList<byte[]> packets;
-    private short blockNumber;
+    private short blockNumber = 1;
     private String serverFilesPath;
     private TftpUtils utils;
     
@@ -53,11 +53,14 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
         tempOpcode[0] = message[0];
         tempOpcode[1] = message[1];
         short Opcode = utils.byteToShort(tempOpcode);
-        if(!isLoggedIn && Opcode != (short) 7){ //Checks if a user is even loggedin
+        if(Opcode == 11){ //Unknown command
+            connections.send(connectionId, utils.createError((short)4, "Illegal TFTP operation - Unknown Opcode"));
+        }
+        else if(!isLoggedIn && Opcode != (short) 7){ //Checks if a user is even loggedin
             connections.send(connectionId, utils.createError((short)6, "User not logged in"));
             return;
         }
-        if(Opcode == 1){ //RRQ - Read request
+        else if(Opcode == 1){ //RRQ - Read request
             
             byte[] fileName = new byte[message.length-3];
             for(int i = 0; i < fileName.length; i++){
@@ -90,7 +93,7 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
                 connections.send(connectionId, utils.createError((short) 1, "File doesn't exist in server"));
         }
 
-        if(Opcode == 2){ //WRQ - Write request
+        else if(Opcode == 2){ //WRQ - Write request
             byte[] fileName = new byte[message.length-3];
             for(int i = 0; i < fileName.length; i++){
                 fileName[i] = message[i+2];
@@ -108,7 +111,7 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
             }
         }
 
-        if(Opcode == 3){//DATA packet for uploading a file from the client to the server
+        else if(Opcode == 3){//DATA packet for uploading a file from the client to the server
             byte[] blockNumber = new byte[2];
             blockNumber[0] = message[4];
             blockNumber[1] = message[5];
@@ -126,7 +129,7 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
             
         }
         
-        if(Opcode == 4){ //ACK packet
+        else if(Opcode == 4){ //ACK packet
             if(packets.isEmpty())
                 blockNumber = 1;
             else{
@@ -135,27 +138,24 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
             }
         }
 
-        if(Opcode == 6){ //DIRQ - Content of Files in server
+        else if(Opcode == 6){ //DIRQ - Content of Files in server
             String[] fileNames = utils.getFilesNames(serverFilesPath);
             if(fileNames.length > 0){ //The are files in the folder
                 String bigFile = "";
                 for(int i = 0; i < fileNames.length; i++){ //Putting a 0 byte at the end of each fileName
                     if(fileNames[i] != fileNames[fileNames.length-1]){
-                        fileNames[i] = fileNames[i] + "\0"; //adds a 0 between the names of the files
+                        fileNames[i] = fileNames[i] + "\0"; //adds a 0 byte between the names of the files
                     }
                     bigFile += fileNames[i]; 
                 }
                 LinkedList<byte[]> packets = utils.devideData(bigFile.getBytes());
-                short blockNumber = 1;
-                for (byte[] packet : packets) { 
-                    connections.send(connectionId, utils.createData(packet, blockNumber));
-                    blockNumber++;
-                }
+                connections.send(connectionId, utils.createData(packets.removeFirst(), blockNumber));
+                blockNumber++;
             }
             else //There arent files in folder
                 connections.send(connectionId, utils.createError((short) 0, "Files folder is empty"));      
         }
-        if(Opcode == 7){ //LOGRQ - Login Request
+        else if(Opcode == 7){ //LOGRQ - Login Request
             byte[] userName = new byte[message.length-3];
             for(int i = 0; i < userName.length; i++){
                 userName[i] = message[i+2];
@@ -170,7 +170,7 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
                 connections.send(connectionId, utils.createError((short) 7,"User already logged in"));
         }
 
-        if(Opcode == 8){ //DELRQ - Delete Request
+        else if(Opcode == 8){ //DELRQ - Delete Request
             byte[] fileName = new byte[message.length-3];
             for(int i = 0; i < fileName.length; i++){
                 fileName[i] = message[i+2];
@@ -189,13 +189,14 @@ public class TftpProtocol implements BidiMessagingProtocol<byte[]>  {
             }
         }
 
-        if(Opcode == 10){ //DISC - Disconnect Request
+        else if(Opcode == 10){ //DISC - Disconnect Request
             connections.send(connectionId, utils.createACK((short) 0)); //Send ACK 0 confirmation
             LoggedInClients.remove(connectionId); //Remove from loggedin clients
             connections.disconnect(connectionId); //Removes connectionhandler from connections
             shouldTerminate = true; 
-            //When error occurs?????
         }
+
+        
         
     }
 

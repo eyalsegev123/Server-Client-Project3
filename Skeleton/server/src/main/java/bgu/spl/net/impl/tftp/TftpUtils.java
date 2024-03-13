@@ -1,10 +1,6 @@
 package bgu.spl.net.impl.tftp;
 
 import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.InvalidPathException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.LinkedList;
 
 public class TftpUtils {
@@ -37,6 +33,14 @@ public class TftpUtils {
         return mergeArrays(arrays);
     }
 
+    public byte[] createLOGRQ(String name){
+        byte[][] arrays = new byte[3][];
+        arrays[0] = shortToByte((short) 7);
+        arrays[1] = name.getBytes();
+        arrays[2] = new byte[]{0};
+        return mergeArrays(arrays);
+    }
+
     public byte[] createData(byte[] packet, short numOfBlock){
         byte[][] arrays = new byte[4][];
         arrays[0] = shortToByte((short) 3);
@@ -44,6 +48,43 @@ public class TftpUtils {
         arrays[2] = shortToByte(numOfBlock);
         arrays[3] = packet;
         return mergeArrays(arrays);
+    }
+    
+    
+    public byte[] createRRQ(String name){
+        byte[][] arrays = new byte[3][];
+        arrays[0] = shortToByte((short) 1);
+        arrays[1] = name.getBytes();
+        arrays[2]= new byte[]{0};
+        return mergeArrays(arrays);
+    }
+    
+    public byte[] createWRQ(String name){
+        byte[][] arrays = new byte[3][];
+        arrays[0] = shortToByte((short) 2);
+        arrays[1] = name.getBytes();
+        arrays[2]= new byte[]{0};
+        return mergeArrays(arrays);
+    }
+
+    public byte[] createDIRQ(){
+        return shortToByte((short) 6);
+    }
+
+    public byte[] createDELRQ(String name){
+        byte[][] arrays = new byte[3][];
+        arrays[0] = shortToByte((short) 8);
+        arrays[1] = name.getBytes();
+        arrays[2]= new byte[]{0};
+        return mergeArrays(arrays);
+    }
+
+    public byte[] createDISC(){
+        return shortToByte((short) 10);
+    }
+
+    public byte[] createUnknown(){
+        return shortToByte((short) 11);
     }
 
     public byte[] shortToByte(short a){
@@ -102,4 +143,5 @@ public class TftpUtils {
         }
         return output;
     } 
+
 }

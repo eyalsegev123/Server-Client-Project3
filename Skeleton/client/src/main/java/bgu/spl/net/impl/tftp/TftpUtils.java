@@ -49,6 +49,7 @@ public class TftpUtils {
         arrays[3] = packet;
         return mergeArrays(arrays);
     }
+    
     public byte[] createRRQ(String name){
         byte[][] arrays = new byte[3][];
         arrays[0] = shortToByte((short) 1);
@@ -81,8 +82,9 @@ public class TftpUtils {
         return shortToByte((short) 10);
     }
 
-    
-    
+    public byte[] createUnknown(){
+        return shortToByte((short) 11);
+    }
 
     public byte[] shortToByte(short a){
         return new byte []{(byte) (a >> 8), (byte) (a & 0xff)};
